@@ -1,6 +1,8 @@
 package com.joelglanfield.launcher;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
@@ -15,9 +17,13 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
+
+    private static final String MRU_APPS_KEY = "com.joelglanfield.mru_apps";
 
     private RecyclerView mRecyclerView;
 
@@ -26,10 +32,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Get the widgets reference from XML layout
         mRecyclerView = (RecyclerView) findViewById(R.id.recycler_view);
-
-        // Define a layout for RecyclerView
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         // Initialize a new adapter for RecyclerView
@@ -39,6 +42,24 @@ public class MainActivity extends AppCompatActivity {
 
         // Set the adapter for RecyclerView
         mRecyclerView.setAdapter(adapter);
+    }
+
+    private void addAppToMRU(String appName) {
+        Set<String> mruApps = new HashSet<>();
+
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
+        Set<String> sharedMruApps = preferences.getStringSet(MRU_APPS_KEY, null);
+        if (sharedMruApps != null) {
+            for (String s : sharedMruApps) {
+                mruApps.add(s);
+            }
+        }
+        
+        mruApps.add(appName);
+        preferences.edit()
+                .putStringSet(MRU_APPS_KEY, mruApps)
+                .apply();
     }
 
     private class InstalledAppsAdapter extends RecyclerView.Adapter<InstalledAppsAdapter.AppsBaseViewholder> {
@@ -70,6 +91,9 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
+            Set<String> mruAppNames = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).getStringSet(MRU_APPS_KEY, null);
+
+
             mruPackages = new ArrayList<>();
             userAppPackages = new ArrayList<>();
             systemAppPackages = new ArrayList<>();
@@ -80,6 +104,10 @@ public class MainActivity extends AppCompatActivity {
                     userAppPackages.add(ap);
                 } else {
                     systemAppPackages.add(ap);
+                }
+
+                if (mruAppNames != null && mruAppNames.contains(ap.getAppName())) {
+                    mruPackages.add(ap);
                 }
             }
         }
@@ -143,6 +171,7 @@ public class MainActivity extends AppCompatActivity {
                     Intent intent = MainActivity.this.getPackageManager().getLaunchIntentForPackage(appPackage.getPackageName());
                     if (intent != null) {
                         MainActivity.this.startActivity(intent);
+                        MainActivity.this.addAppToMRU(appPackage.getAppName());
                     } else {
                         Toast.makeText(MainActivity.this, appPackage.getPackageName() + " Launch Error.", Toast.LENGTH_SHORT).show();
                     }
