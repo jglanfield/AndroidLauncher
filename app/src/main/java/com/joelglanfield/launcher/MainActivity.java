@@ -1,5 +1,7 @@
 package com.joelglanfield.launcher;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
@@ -16,6 +18,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -25,6 +28,12 @@ import java.util.Set;
 public class MainActivity extends AppCompatActivity {
 
     private static final String MRU_APPS_KEY = "com.joelglanfield.mru_apps";
+    private static final String USER_APPS_KEY = "com.joelglanfield.user_apps";
+    private static final String SYSTEM_APPS_KEY = "com.joelglanfield.system_apps";
+
+    private static final String MRU_APPS_HEADER = "RECENT";
+    private static final String USER_APPS_HEADER = "MY APPS";
+    private static final String SYSTEM_APPS_HEADER = "SYSTEM APPS";
 
     private RecyclerView recyclerView;
 
@@ -41,6 +50,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
 
+        updateData();
+    }
+
+    private void updateData() {
         RecyclerView.Adapter adapter = new InstalledAppsAdapter(
                 new AppsManager(getApplicationContext()).getInstalledPackages()
         );
@@ -48,12 +61,12 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
     }
 
-    private void addAppToMRU(String appName) {
+    private void addAppToPrefs(String appName, String prefsKey) {
         Set<String> mruApps = new HashSet<>();
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        Set<String> sharedMruApps = preferences.getStringSet(MRU_APPS_KEY, null);
+        Set<String> sharedMruApps = preferences.getStringSet(prefsKey, null);
         if (sharedMruApps != null) {
             for (String s : sharedMruApps) {
                 mruApps.add(s);
@@ -62,8 +75,41 @@ public class MainActivity extends AppCompatActivity {
 
         mruApps.add(appName);
         preferences.edit()
-                .putStringSet(MRU_APPS_KEY, mruApps)
+                .putStringSet(prefsKey, mruApps)
                 .apply();
+    }
+
+    private void removeAppFromPrefs(String appName, String prefsKey) {
+        Set<String> mruApps = new HashSet<>();
+
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
+        Set<String> sharedMruApps = preferences.getStringSet(prefsKey, null);
+        if (sharedMruApps != null) {
+            for (String s : sharedMruApps) {
+                if (!s.equalsIgnoreCase(appName)) {
+                    mruApps.add(s);
+                }
+            }
+        }
+
+        preferences.edit()
+                .putStringSet(prefsKey, mruApps)
+                .apply();
+    }
+
+    private boolean isAppInPrefs(String appName, String prefsKey) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        Set<String> sharedMruApps = preferences.getStringSet(prefsKey, null);
+        if (sharedMruApps != null) {
+            for (String s : sharedMruApps) {
+                if (s.equalsIgnoreCase(appName)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private class InstalledAppsAdapter extends RecyclerView.Adapter<InstalledAppsAdapter.AppsBaseViewholder> {
@@ -97,16 +143,15 @@ public class MainActivity extends AppCompatActivity {
 
             Set<String> mruAppNames = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).getStringSet(MRU_APPS_KEY, null);
 
-
             mruPackages = new ArrayList<>();
             userAppPackages = new ArrayList<>();
             systemAppPackages = new ArrayList<>();
 
             for (int i = 0; i < packages.size(); i++) {
                 AppPackage ap = packages.get(i);
-                if (!ap.getIsSystemApp()) {
+                if (!ap.getIsSystemApp() && !isAppInPrefs(ap.getAppName(), USER_APPS_KEY)) {
                     userAppPackages.add(ap);
-                } else {
+                } else if (!isAppInPrefs(ap.getAppName(), SYSTEM_APPS_KEY)){
                     systemAppPackages.add(ap);
                 }
 
@@ -165,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
 
             final AppPackage appPackage = getAppPackageAtPosition(position);
 
-            AppItemViewHolder appItemViewHolder = (AppItemViewHolder) holder;
+            final AppItemViewHolder appItemViewHolder = (AppItemViewHolder) holder;
             appItemViewHolder.mTextViewLabel.setText(appPackage.getAppName());
             appItemViewHolder.mImageViewIcon.setImageDrawable(appPackage.getAppIcon());
             appItemViewHolder.itemView.setOnClickListener(new View.OnClickListener() {
@@ -174,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
                     Intent intent = MainActivity.this.getPackageManager().getLaunchIntentForPackage(appPackage.getPackageName());
                     if (intent != null) {
                         MainActivity.this.startActivity(intent);
-                        MainActivity.this.addAppToMRU(appPackage.getAppName());
+                        MainActivity.this.addAppToPrefs(appPackage.getAppName(), MRU_APPS_KEY);
                     } else {
                         Toast.makeText(MainActivity.this, appPackage.getPackageName() + " Launch Error.", Toast.LENGTH_SHORT).show();
                     }
@@ -184,6 +229,7 @@ public class MainActivity extends AppCompatActivity {
             appItemViewHolder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View view) {
+                    showDeleteAppAlert(appPackage, appItemViewHolder.getAdapterPosition());
                     return true;
                 }
             });
@@ -223,17 +269,17 @@ public class MainActivity extends AppCompatActivity {
         private String getTitleForHeader(int position) {
             if (!mruPackages.isEmpty()) {
                 if (position == 0) {
-                    return "RECENT";
+                    return MRU_APPS_HEADER;
                 } else if (position == mruPackages.size() + 1) {
-                    return "MY APPS";
+                    return USER_APPS_HEADER;
                 } else {
-                    return "SYSTEM APPS";
+                    return SYSTEM_APPS_HEADER;
                 }
             } else if (position == 0) {
-                return "MY APPS";
+                return USER_APPS_HEADER;
             }
 
-            return "SYSTEM APPS";
+            return SYSTEM_APPS_HEADER;
         }
 
         private AppPackage getAppPackageAtPosition(int position) {
@@ -251,6 +297,30 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("Launcher", "Position: " + position + " System apps: " + systemAppPackages.size() + " User apps: " + userAppPackages.size());
                 return systemAppPackages.get(position - userAppPackages.size() - 2);
             }
+        }
+
+        private void showDeleteAppAlert(final AppPackage appPackage, final int position) {
+            AlertDialog.Builder alertBuilder = new AlertDialog.Builder(MainActivity.this);
+            alertBuilder.setTitle(appPackage.getAppName());
+            alertBuilder.setMessage("Do you want to remove " + appPackage.getAppName() + " from the list?");
+
+            alertBuilder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    if (!mruPackages.isEmpty() && position <= mruPackages.size()) {
+                        removeAppFromPrefs(appPackage.getAppName(), MRU_APPS_KEY);
+                    } else if (appPackage.getIsSystemApp()) {
+                        addAppToPrefs(appPackage.getAppName(), SYSTEM_APPS_KEY);
+                    } else {
+                        addAppToPrefs(appPackage.getAppName(), USER_APPS_KEY);
+                    }
+
+                    updateData();
+                    dialogInterface.dismiss();
+                }
+            });
+
+            alertBuilder.show();
         }
     }
 }
