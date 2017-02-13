@@ -173,7 +173,7 @@ public class MainActivity extends AppCompatActivity {
                 AppPackage ap = packages.get(i);
                 if (!ap.getIsSystemApp() && !isAppInPrefs(ap.getAppName(), USER_APPS_KEY)) {
                     userAppPackages.add(ap);
-                } else if (!isAppInPrefs(ap.getAppName(), SYSTEM_APPS_KEY)){
+                } else if (ap.getIsSystemApp() && !isAppInPrefs(ap.getAppName(), SYSTEM_APPS_KEY)){
                     systemAppPackages.add(ap);
                 }
 
