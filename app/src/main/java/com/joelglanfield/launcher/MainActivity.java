@@ -7,6 +7,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,23 +26,26 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String MRU_APPS_KEY = "com.joelglanfield.mru_apps";
 
-    private RecyclerView mRecyclerView;
+    private RecyclerView recyclerView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mRecyclerView = (RecyclerView) findViewById(R.id.recycler_view);
-        mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+    }
 
-        // Initialize a new adapter for RecyclerView
+    @Override
+    protected void onStart() {
+        super.onStart();
+
         RecyclerView.Adapter adapter = new InstalledAppsAdapter(
                 new AppsManager(getApplicationContext()).getInstalledPackages()
         );
 
-        // Set the adapter for RecyclerView
-        mRecyclerView.setAdapter(adapter);
+        recyclerView.setAdapter(adapter);
     }
 
     private void addAppToMRU(String appName) {
@@ -55,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
                 mruApps.add(s);
             }
         }
-        
+
         mruApps.add(appName);
         preferences.edit()
                 .putStringSet(MRU_APPS_KEY, mruApps)
@@ -167,7 +171,6 @@ public class MainActivity extends AppCompatActivity {
             appItemViewHolder.itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    // Get the intent to launch the specified application
                     Intent intent = MainActivity.this.getPackageManager().getLaunchIntentForPackage(appPackage.getPackageName());
                     if (intent != null) {
                         MainActivity.this.startActivity(intent);
@@ -177,10 +180,21 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             });
+
+            appItemViewHolder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view) {
+                    return true;
+                }
+            });
         }
 
         @Override
         public int getItemCount() {
+            if (mruPackages.isEmpty()) {
+                return userAppPackages.size() + systemAppPackages.size() + 2;
+            }
+
             return mruPackages.size() + userAppPackages.size() + systemAppPackages.size() + 3;
         }
 
@@ -194,15 +208,28 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private boolean isHeaderPosition(int position) {
-            return position == 0 ||
-                    position == mruPackages.size() + 1 ||
-                    position == mruPackages.size() + 1 + userAppPackages.size() + 1;
+            if (position == 0) {
+                return true;
+            }
+
+            if (mruPackages.isEmpty()) {
+                return position == userAppPackages.size() + 1;
+            } else {
+                return position == mruPackages.size() + 1 ||
+                        position == mruPackages.size() + 1 + userAppPackages.size() + 1;
+            }
         }
 
         private String getTitleForHeader(int position) {
-            if (position == 0) {
-                return "RECENT";
-            } else if (position == mruPackages.size() + 1) {
+            if (!mruPackages.isEmpty()) {
+                if (position == 0) {
+                    return "RECENT";
+                } else if (position == mruPackages.size() + 1) {
+                    return "MY APPS";
+                } else {
+                    return "SYSTEM APPS";
+                }
+            } else if (position == 0) {
                 return "MY APPS";
             }
 
@@ -210,14 +237,20 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private AppPackage getAppPackageAtPosition(int position) {
-            if (position <= mruPackages.size()) {
-                return mruPackages.get(position-1);
+            if (!mruPackages.isEmpty()) {
+                if (position <= mruPackages.size()) {
+                    return mruPackages.get(position - 1);
+                } else if (position <= mruPackages.size() + userAppPackages.size() + 2) {
+                    return userAppPackages.get(position - mruPackages.size() - 2);
+                } else {
+                    return systemAppPackages.get(position - mruPackages.size() - userAppPackages.size() - 3);
+                }
+            } else if (position <= userAppPackages.size()) {
+                return userAppPackages.get(position-1);
+            } else {
+                Log.d("Launcher", "Position: " + position + " System apps: " + systemAppPackages.size() + " User apps: " + userAppPackages.size());
+                return systemAppPackages.get(position - userAppPackages.size() - 2);
             }
-            else if (position <= mruPackages.size() + userAppPackages.size() + 2) {
-                return userAppPackages.get(position - mruPackages.size() - 2);
-            }
-
-            return systemAppPackages.get(position - mruPackages.size() - userAppPackages.size() - 3);
         }
     }
 }
