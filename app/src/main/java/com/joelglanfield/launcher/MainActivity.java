@@ -259,11 +259,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public int getItemCount() {
-            if (mruPackages.isEmpty()) {
-                return userAppPackages.size() + systemAppPackages.size() + 2;
-            }
-
-            return mruPackages.size() + userAppPackages.size() + systemAppPackages.size() + 3;
+            return mruPackages.size() + userAppPackages.size() + systemAppPackages.size() + getNumberOfAppSections();
         }
 
         @Override
@@ -275,29 +271,48 @@ public class MainActivity extends AppCompatActivity {
             return APP_ITEM;
         }
 
-        private boolean isHeaderPosition(int position) {
-            if (position == 0) {
-                return true;
+        public int getNumberOfAppSections() {
+            int sections = !userAppPackages.isEmpty()
+                    ? 1 + (!systemAppPackages.isEmpty() ? 1 : 0)
+                    : (!systemAppPackages.isEmpty() ? 1 : 0);
+            if (!mruPackages.isEmpty()) {
+                sections = sections + 1;
             }
 
-            if (mruPackages.isEmpty()) {
-                return position == userAppPackages.size() + 1;
-            } else {
-                return position == mruPackages.size() + 1 ||
-                        position == mruPackages.size() + 1 + userAppPackages.size() + 1;
+            return sections;
+        }
+
+        private boolean isHeaderPosition(int position) {
+            if (position == 0) {
+                return !mruPackages.isEmpty() || !userAppPackages.isEmpty() || !systemAppPackages.isEmpty();
             }
+
+            if (!mruPackages.isEmpty()) {
+                if (position == mruPackages.size() + 1 && (!userAppPackages.isEmpty() || !systemAppPackages.isEmpty())){
+                    return true;
+                } else if (!userAppPackages.isEmpty() && position == mruPackages.size() + userAppPackages.size() + 2) {
+                    return true;
+                }
+            } else if (!systemAppPackages.isEmpty()) {
+                if (!userAppPackages.isEmpty()) {
+                    return position == userAppPackages.size() + 1;
+                }
+                return false;
+            }
+
+            return false;
         }
 
         private String getTitleForHeader(int position) {
             if (!mruPackages.isEmpty()) {
                 if (position == 0) {
                     return MRU_APPS_HEADER;
-                } else if (position == mruPackages.size() + 1) {
+                } else if (position == mruPackages.size() + 1 && !userAppPackages.isEmpty()) {
                     return USER_APPS_HEADER;
                 } else {
                     return SYSTEM_APPS_HEADER;
                 }
-            } else if (position == 0) {
+            } else if (position == 0 && !userAppPackages.isEmpty()) {
                 return USER_APPS_HEADER;
             }
 
@@ -308,17 +323,18 @@ public class MainActivity extends AppCompatActivity {
             if (!mruPackages.isEmpty()) {
                 if (position <= mruPackages.size()) {
                     return mruPackages.get(position - 1);
-                } else if (position <= mruPackages.size() + userAppPackages.size() + 2) {
+                } else if (!userAppPackages.isEmpty() && position <= mruPackages.size() + userAppPackages.size() + 2) {
                     return userAppPackages.get(position - mruPackages.size() - 2);
-                } else {
-                    return systemAppPackages.get(position - mruPackages.size() - userAppPackages.size() - 3);
+                } else if (!systemAppPackages.isEmpty()) {
+                    return systemAppPackages.get(position - mruPackages.size() - userAppPackages.size() - getNumberOfAppSections());
                 }
             } else if (position <= userAppPackages.size()) {
                 return userAppPackages.get(position-1);
             } else {
-                Log.d("Launcher", "Position: " + position + " System apps: " + systemAppPackages.size() + " User apps: " + userAppPackages.size());
-                return systemAppPackages.get(position - userAppPackages.size() - 2);
+                return systemAppPackages.get(position - userAppPackages.size() - getNumberOfAppSections());
             }
+
+            return null;
         }
 
         private void showDeleteAppAlert(final AppPackage appPackage, final int position) {
@@ -337,12 +353,51 @@ public class MainActivity extends AppCompatActivity {
                         addAppToPrefs(appPackage.getAppName(), USER_APPS_KEY);
                     }
 
-                    updateData();
                     dialogInterface.dismiss();
+                    removeAppAtPosition(position);
                 }
             });
 
             alertBuilder.show();
+        }
+
+        private void removeAppAtPosition(int position) {
+            if (!mruPackages.isEmpty()) {
+                if (position <= mruPackages.size()) {
+                    mruPackages.remove(position - 1);
+                    if (mruPackages.isEmpty()) {
+                        notifyItemRangeRemoved(0, 2);
+                        return;
+                    }
+                } else if (position <= mruPackages.size() + userAppPackages.size() + 2 && !userAppPackages.isEmpty()) {
+                    userAppPackages.remove(position - mruPackages.size() - 2);
+                    if (userAppPackages.isEmpty()) {
+                        notifyItemRangeRemoved(position-1, 2);
+                        return;
+                    }
+                } else {
+                    systemAppPackages.remove(position - mruPackages.size() - userAppPackages.size() - getNumberOfAppSections());
+                    if (systemAppPackages.isEmpty()) {
+                        notifyItemRangeRemoved(position-1, 2);
+                        return;
+                    }
+                }
+            } else if (position <= userAppPackages.size()) {
+                userAppPackages.remove(position - 1);
+                if (userAppPackages.isEmpty()) {
+                    notifyItemRangeRemoved(position-1, 2);
+                    return;
+                }
+            } else {
+                systemAppPackages.remove(position - userAppPackages.size() - getNumberOfAppSections());
+                if (systemAppPackages.isEmpty()) {
+                    notifyItemRangeRemoved(position-1, 2);
+                    return;
+                }
+            }
+
+            notifyItemRemoved(position);
+            notifyItemRangeChanged(position, mruPackages.size() + userAppPackages.size() + systemAppPackages.size() + getNumberOfAppSections());
         }
     }
 }
