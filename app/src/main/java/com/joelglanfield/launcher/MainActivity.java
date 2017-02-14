@@ -47,14 +47,16 @@ public class MainActivity extends AppCompatActivity {
 
         recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
 
         updateData();
     }
+
+//    @Override
+//    protected void onStart() {
+//        super.onStart();
+//
+//        updateData();
+//    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -241,7 +243,16 @@ public class MainActivity extends AppCompatActivity {
                     Intent intent = MainActivity.this.getPackageManager().getLaunchIntentForPackage(appPackage.getPackageName());
                     if (intent != null) {
                         MainActivity.this.startActivity(intent);
-                        MainActivity.this.addAppToPrefs(appPackage.getAppName(), MRU_APPS_KEY);
+                        if (!mruPackages.contains(appPackage)) {
+                            MainActivity.this.addAppToPrefs(appPackage.getAppName(), MRU_APPS_KEY);
+                            mruPackages.add(0, appPackage);
+                            if (mruPackages.size() == 1) {
+                                notifyItemInserted(0);
+                                notifyItemInserted(1);
+                            } else {
+                                notifyItemInserted(1);
+                            }
+                        }
                     } else {
                         Toast.makeText(MainActivity.this, appPackage.getPackageName() + " Launch Error.", Toast.LENGTH_SHORT).show();
                     }
